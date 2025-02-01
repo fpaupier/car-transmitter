@@ -1,73 +1,53 @@
-/* Blink Example
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
+#include <esp_now.h>
+#include <WiFi.h>
+#include "secrets.h"
 
-#include <stdio.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <driver/gpio.h>
-#include "sdkconfig.h"
-#include <Arduino.h>
+// Joystick pins
+#define VRX_PIN  34
+#define VRY_PIN  35
+#define SW_PIN   32
 
-/* Can run 'make menuconfig' to choose the GPIO to blink,
-   or you can edit the following line and set a number here.
-*/
-#define BLINK_GPIO (gpio_num_t)CONFIG_BLINK_GPIO
+// Data structure for joystick values
+typedef struct struct_message {
+    int x;
+    int y;
+    bool button;
+} struct_message;
 
-#ifndef LED_BUILTIN
-#define LED_BUILTIN 4
-#endif
+// Data structure
+struct_message joystickData;
 
-void blink_task(void *pvParameter)
-{
-    /* Configure the IOMUX register for pad BLINK_GPIO (some pads are
-       muxed to GPIO on reset already, but some default to other
-       functions and need to be switched to GPIO. Consult the
-       Technical Reference for a list of pads and their default
-       functions.)
-    */
-    gpio_pad_select_gpio(BLINK_GPIO);
-    /* Set the GPIO as a push/pull output */
-    gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
-    while(1) {
-        /* Blink off (output low) */
-        gpio_set_level(BLINK_GPIO, 0);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        /* Blink on (output high) */
-        gpio_set_level(BLINK_GPIO, 1);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-}
-
-#if !CONFIG_AUTOSTART_ARDUINO
-void arduinoTask(void *pvParameter) {
-    pinMode(LED_BUILTIN, OUTPUT);
-    while(1) {
-        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-        delay(1000);
-    }
-}
-
-extern "C" void app_main()
-{
-    // initialize arduino library before we start the tasks
-    initArduino();
-
-    xTaskCreate(&blink_task, "blink_task", configMINIMAL_STACK_SIZE, NULL, 5, NULL);
-    xTaskCreate(&arduinoTask, "arduino_task", configMINIMAL_STACK_SIZE, NULL, 5, NULL);
-}
-#else
 void setup() {
     Serial.begin(115200);
-    xTaskCreate(&blink_task, "blink_task", configMINIMAL_STACK_SIZE, NULL, 5, NULL);
-    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(SW_PIN, INPUT_PULLUP);
+
+    // Init ESP-NOW
+    WiFi.mode(WIFI_STA);
+    if (esp_now_init() != ESP_OK) {
+        Serial.println("Error initializing ESP-NOW");
+        return;
+    }
+
+    // Register peer
+    esp_now_peer_info_t peerInfo;
+    memcpy(peerInfo.peer_addr, RECEIVER_MAC_ADDRESS, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+
+    if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+        Serial.println("Failed to add peer");
+        return;
+    }
 }
+
 void loop() {
-    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-    Serial.println("Hello!");
-    delay(1000);
+    // Read joystick values
+    joystickData.x = analogRead(VRX_PIN) - 2048;  // Center at 0
+    joystickData.y = analogRead(VRY_PIN) - 2048;
+    joystickData.button = digitalRead(SW_PIN);
+
+    // Send data via ESP-NOW
+    esp_err_t result = esp_now_send(RECEIVER_MAC_ADDRESS, (uint8_t *) &joystickData, sizeof(joystickData));
+
+    delay(50);  // Adjust for responsiveness
 }
-#endif
