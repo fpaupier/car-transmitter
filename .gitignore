@@ -1,5 +1,6 @@
 .pio/
 .idea/
+include/secrets.h
 
 # Prerequisites
 *.d
