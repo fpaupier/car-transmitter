@@ -9,6 +9,8 @@
 #define VRX_PIN  34
 #define VRY_PIN  35
 #define SW_PIN   32
+#define DEADZONE 50
+
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -21,6 +23,11 @@ typedef struct struct_message {
     int y;
     bool button;
 } struct_message;
+
+
+// Calibration values
+int xCenter = 2048;
+int yCenter = 2048;
 
 struct_message joystickData;
 bool connected = false;
@@ -54,10 +61,34 @@ void sendCallback(const uint8_t *mac_addr, esp_now_send_status_t status) {
     connected = (status == ESP_NOW_SEND_SUCCESS);
 }
 
+void calibrateJoystick() {
+    delay(1000);
+    xCenter = analogRead(VRX_PIN);
+    yCenter = analogRead(VRY_PIN);
+}
+
+int applyDeadzone(int value, int deadzone) {
+    return abs(value) < deadzone ? 0 : value;
+}
+
+void readJoystick() {
+    int rawX = analogRead(VRX_PIN) - xCenter;
+    int rawY = analogRead(VRY_PIN) - yCenter;
+
+    // Apply deadzone and map to -255~255 range
+    joystickData.x = applyDeadzone(map(rawX, -2048, 2048, -255, 255), DEADZONE);
+    joystickData.y = applyDeadzone(map(rawY, -2048, 2048, -255, 255), DEADZONE);
+    joystickData.button = !digitalRead(SW_PIN);
+}
+
+
 void setup() {
     Serial.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(SW_PIN, INPUT_PULLUP);
+
+    // Joystick calibration
+    calibrateJoystick();
 
     // Initialize WiFi
     WiFi.mode(WIFI_STA);
@@ -97,40 +128,18 @@ void setup() {
         }
         return;
     }
-
     // Register callback once during setup
     Serial.println("Transmitter initialized");
 }
 
 void loop() {
-    updateLED();  // Handle LED status
-
-    if (esp_now_init() != ESP_OK) {
-        Serial.println("ESP-NOW init failed");
-    } else
-        Serial.println("ESP-NOW init OK");
-
-
-    // Send data every 50ms
-    if (millis() - lastSendTime >= 50) {
-        // Read joystick values
-        joystickData.x = analogRead(VRX_PIN) - 2048;
-        joystickData.y = analogRead(VRY_PIN) - 2048;
-        joystickData.button = !digitalRead(SW_PIN);
-
-        // Send data
-        esp_err_t result = esp_now_send(RECEIVER_MAC_ADDRESS,
-                                        (uint8_t *) &joystickData,
-                                        sizeof(joystickData));
-
-        if (result == ESP_OK) {
-            Serial.println("Sent with success");
-        } else {
-            Serial.println("Error sending the data");
+    updateLED();
+    readJoystick();
+    if (millis() - lastSendTime > 20) { // 50Hz refresh rate
+        if (esp_now_send(RECEIVER_MAC_ADDRESS, (uint8_t *) &joystickData, sizeof(joystickData)) != ESP_OK) {
+            Serial.println("Send Failed");
         }
-
         lastSendTime = millis();
     }
-    delay(50);  // Adjust for responsiveness
-
 }
+
