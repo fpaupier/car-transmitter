@@ -2,6 +2,10 @@
 
 Remote control using ESPNOW to connect to RC car
 
+## Controller illustration
+
+Using an analog joystick to control the car the OLED display was a tentative to show the on board camera but black and white OLED is not useful to display camera feed, to work on that  
+![transmitter](./doc/transmitter.jpg)
 
 ## Getting the receiver MAC adress
 
