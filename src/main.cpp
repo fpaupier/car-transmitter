@@ -5,7 +5,7 @@
 #include <HardwareSerial.h>
 #include <Wire.h>
 #include <ESPNowCam.h>
-
+#include <TJpg_Decoder.h>
 
 #include "secrets.h"
 
@@ -47,32 +47,39 @@ int32_t dw, dh;
 unsigned long lastFrameTime = 0;
 float fps = 0;
 
+// Callback function for TJpg_Decoder
+bool jpegRenderer(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap) {
+    // Process each pixel in the decoded block
+    for (int16_t j = 0; j < h; j++) {
+        for (int16_t i = 0; i < w; i++) {
+            // Skip if outside display boundaries
+            if ((x + i) >= SCREEN_WIDTH || (y + j) >= SCREEN_HEIGHT) continue;
 
-// Function to convert JPEG to 1-bit black and white for OLED
-void jpgToBW(uint8_t *jpgData, uint32_t length) {
-    // This is a simplified placeholder - in a real implementation,
-    // you would need to decode the JPEG and convert to 1-bit BW
-    // For now, we'll just fill the display with a test pattern
+            // Get the pixel color (RGB565 format)
+            uint16_t pixel = bitmap[j * w + i];
 
-    display.clearDisplay();
+            // Extract RGB components
+            uint8_t r = (pixel >> 11) & 0x1F;
+            uint8_t g = (pixel >> 5) & 0x3F;
+            uint8_t b = pixel & 0x1F;
 
-    // Draw a test pattern or placeholder
-    display.drawRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SH110X_WHITE);
-    display.setCursor(10, 10);
-    display.print("Frame: ");
-    display.print(length);
-    display.setCursor(10, 30);
-    display.print("FPS: ");
-    display.print(fps, 1);
+            // Convert to grayscale using standard luminance formula
+            // Scale R5G6B5 to 0-255 range first
+            r = (r * 255) / 31;
+            g = (g * 255) / 63;
+            b = (b * 255) / 31;
+            uint8_t gray = (r * 30 + g * 59 + b * 11) / 100;
 
-    // In a real implementation, you would:
-    // 1. Decode the JPEG (using TJpgDec or similar library)
-    // 2. Resize to 128x128
-    // 3. Convert to black and white using a threshold
-    // 4. Draw to the display buffer
+            // Apply threshold to convert to pure black or white (128 is the threshold)
+            bool isWhite = (gray > 128);
 
-    display.display();
+            // Draw the pixel on the display
+            display.drawPixel(x + i, y + j, isWhite ? SH110X_WHITE : SH110X_BLACK);
+        }
+    }
+    return true;
 }
+
 
 void printFPS() {
     unsigned long currentTime = millis();
@@ -87,9 +94,27 @@ void printFPS() {
 
 
 void onDataReady(uint32_t length) {
-    // Process the received JPEG data and display on OLED
-    jpgToBW(fb, length);
-    printFPS();
+    // Clear display before drawing new image
+    display.clearDisplay();
+
+    // Configure and use TJpg_Decoder
+    TJpgDec.setJpgScale(1); // No scaling
+    TJpgDec.setCallback(jpegRenderer);
+
+    // Decode the JPEG data
+    TJpgDec.drawJpg(0, 0, fb, length);
+
+    // Update the display
+    display.display();
+
+    // Print FPS info
+    static unsigned long lastFrameTime = 0;
+    unsigned long currentTime = millis();
+    if (lastFrameTime > 0) {
+        float fps = 1000.0 / (currentTime - lastFrameTime);
+        Serial.printf("FPS: %.1f\n", fps);
+    }
+    lastFrameTime = currentTime;
 }
 
 
@@ -189,93 +214,6 @@ void readJoystick() {
 }
 
 
-void testdrawline() {
-    int16_t i;
-
-    display.clearDisplay(); // Clear display buffer
-
-    for (i = 0; i < display.width(); i += 4) {
-        display.drawLine(0, 0, i, display.height() - 1, SH110X_WHITE);
-        display.display(); // Update screen with each newly-drawn line
-        delay(1);
-    }
-    for (i = 0; i < display.height(); i += 4) {
-        display.drawLine(0, 0, display.width() - 1, i, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-    delay(250);
-
-    display.clearDisplay();
-
-    for (i = 0; i < display.width(); i += 4) {
-        display.drawLine(0, display.height() - 1, i, 0, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-    for (i = display.height() - 1; i >= 0; i -= 4) {
-        display.drawLine(0, display.height() - 1, display.width() - 1, i, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-    delay(250);
-
-    display.clearDisplay();
-
-    for (i = display.width() - 1; i >= 0; i -= 4) {
-        display.drawLine(display.width() - 1, display.height() - 1, i, 0, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-    for (i = display.height() - 1; i >= 0; i -= 4) {
-        display.drawLine(display.width() - 1, display.height() - 1, 0, i, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-    delay(250);
-
-    display.clearDisplay();
-
-    for (i = 0; i < display.height(); i += 4) {
-        display.drawLine(display.width() - 1, 0, 0, i, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-    for (i = 0; i < display.width(); i += 4) {
-        display.drawLine(display.width() - 1, 0, i, display.height() - 1, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-
-    delay(2000); // Pause for 2 seconds
-}
-
-void testdrawrect(void) {
-    display.clearDisplay();
-
-    for (int16_t i = 0; i < display.height() / 2; i += 2) {
-        display.drawRect(i, i, display.width() - 2 * i, display.height() - 2 * i, SH110X_WHITE);
-        display.display(); // Update screen with each newly-drawn rectangle
-        delay(1);
-    }
-
-    delay(2000);
-}
-
-void testfillrect(void) {
-    display.clearDisplay();
-
-    for (int16_t i = 0; i < display.height() / 2; i += 3) {
-        // The INVERSE color is used so rectangles alternate white/black
-        display.fillRect(i, i, display.width() - i * 2, display.height() - i * 2, SH110X_INVERSE);
-        display.display(); // Update screen with each newly-drawn rectangle
-        delay(1);
-    }
-
-    delay(2000);
-}
-
-
 void setup() {
     Serial.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
@@ -321,6 +259,10 @@ void setup() {
         display.display();
         for (;;);
     }
+
+    // Initialize TJpg_Decoder
+    TJpgDec.setJpgScale(1); // No scaling
+    TJpgDec.setCallback(jpegRenderer);
 
     // Initialize ESPNowCam
     radio.setRecvBuffer(fb);
