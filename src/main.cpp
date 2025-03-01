@@ -4,6 +4,8 @@
 #include <Adafruit_SH110X.h>
 #include <HardwareSerial.h>
 #include <Wire.h>
+#include <ESPNowCam.h>
+
 
 #include "secrets.h"
 
@@ -31,6 +33,64 @@
 #define OLED_RESET (-1)     // can set an oled reset pin if desired
 
 Adafruit_SH1107 display = Adafruit_SH1107(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET, 1000000, 100000);
+
+
+// ESPNowCam instance
+ESPNowCam radio;
+
+// Frame buffer
+uint8_t *fb;
+uint8_t *bwBuffer; // Buffer for black and white converted image
+
+// Display globals
+int32_t dw, dh;
+unsigned long lastFrameTime = 0;
+float fps = 0;
+
+
+// Function to convert JPEG to 1-bit black and white for OLED
+void jpgToBW(uint8_t *jpgData, uint32_t length) {
+    // This is a simplified placeholder - in a real implementation,
+    // you would need to decode the JPEG and convert to 1-bit BW
+    // For now, we'll just fill the display with a test pattern
+
+    display.clearDisplay();
+
+    // Draw a test pattern or placeholder
+    display.drawRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SH110X_WHITE);
+    display.setCursor(10, 10);
+    display.print("Frame: ");
+    display.print(length);
+    display.setCursor(10, 30);
+    display.print("FPS: ");
+    display.print(fps, 1);
+
+    // In a real implementation, you would:
+    // 1. Decode the JPEG (using TJpgDec or similar library)
+    // 2. Resize to 128x128
+    // 3. Convert to black and white using a threshold
+    // 4. Draw to the display buffer
+
+    display.display();
+}
+
+void printFPS() {
+    unsigned long currentTime = millis();
+    if (lastFrameTime > 0) {
+        fps = 1000.0 / (currentTime - lastFrameTime);
+    }
+    lastFrameTime = currentTime;
+
+    Serial.print("FPS: ");
+    Serial.println(fps);
+}
+
+
+void onDataReady(uint32_t length) {
+    // Process the received JPEG data and display on OLED
+    jpgToBW(fb, length);
+    printFPS();
+}
 
 
 // Data structure for joystick values
@@ -215,128 +275,6 @@ void testfillrect(void) {
     delay(2000);
 }
 
-void testdrawcircle(void) {
-    display.clearDisplay();
-
-    for (int16_t i = 0; i < max(display.width(), display.height()) / 2; i += 2) {
-        display.drawCircle(display.width() / 2, display.height() / 2, i, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-
-    delay(2000);
-}
-
-void testfillcircle(void) {
-    display.clearDisplay();
-
-    for (int16_t i = max(display.width(), display.height()) / 2; i > 0; i -= 3) {
-        // The INVERSE color is used so circles alternate white/black
-        display.fillCircle(display.width() / 2, display.height() / 2, i, SH110X_INVERSE);
-        display.display(); // Update screen with each newly-drawn circle
-        delay(1);
-    }
-
-    delay(2000);
-}
-
-void testdrawroundrect(void) {
-    display.clearDisplay();
-
-    for (int16_t i = 0; i < display.height() / 2 - 2; i += 2) {
-        display.drawRoundRect(i, i, display.width() - 2 * i, display.height() - 2 * i,
-                              display.height() / 4, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-
-    delay(2000);
-}
-
-void testfillroundrect(void) {
-    display.clearDisplay();
-
-    for (int16_t i = 0; i < display.height() / 2 - 2; i += 2) {
-        // The INVERSE color is used so round-rects alternate white/black
-        display.fillRoundRect(i, i, display.width() - 2 * i, display.height() - 2 * i,
-                              display.height() / 4, SH110X_INVERSE);
-        display.display();
-        delay(1);
-    }
-
-    delay(2000);
-}
-
-void testdrawtriangle(void) {
-    display.clearDisplay();
-
-    for (int16_t i = 0; i < max(display.width(), display.height()) / 2; i += 5) {
-        display.drawTriangle(
-                display.width() / 2, display.height() / 2 - i,
-                display.width() / 2 - i, display.height() / 2 + i,
-                display.width() / 2 + i, display.height() / 2 + i, SH110X_WHITE);
-        display.display();
-        delay(1);
-    }
-
-    delay(2000);
-}
-
-void testfilltriangle(void) {
-    display.clearDisplay();
-
-    for (int16_t i = max(display.width(), display.height()) / 2; i > 0; i -= 5) {
-        // The INVERSE color is used so triangles alternate white/black
-        display.fillTriangle(
-                display.width() / 2, display.height() / 2 - i,
-                display.width() / 2 - i, display.height() / 2 + i,
-                display.width() / 2 + i, display.height() / 2 + i, SH110X_INVERSE);
-        display.display();
-        delay(1);
-    }
-
-    delay(2000);
-}
-
-void testdrawchar(void) {
-    display.clearDisplay();
-
-    display.setTextSize(1);      // Normal 1:1 pixel scale
-    display.setTextColor(SH110X_WHITE); // Draw white text
-    display.setCursor(0, 0);     // Start at top-left corner
-    display.cp437(true);         // Use full 256 char 'Code Page 437' font
-
-    // Not all the characters will fit on the display. This is normal.
-    // Library will draw what it can and the rest will be clipped.
-    for (int16_t i = 0; i < 256; i++) {
-        if (i == '\n') display.write(' ');
-        else display.write(i);
-    }
-
-    display.display();
-    delay(2000);
-}
-
-void testdrawstyles(void) {
-    display.clearDisplay();
-
-    display.setTextSize(1);             // Normal 1:1 pixel scale
-    display.setTextColor(SH110X_WHITE);        // Draw white text
-    display.setCursor(0, 0);             // Start at top-left corner
-    display.println(F("Hello, world!"));
-
-    display.setTextColor(SH110X_BLACK, SH110X_WHITE); // Draw 'inverse' text
-    display.println(3.141592);
-
-    display.setTextSize(2);             // Draw 2X-scale text
-    display.setTextColor(SH110X_WHITE);
-    display.print(F("0x"));
-    display.println(0xDEADBEEF, HEX);
-
-    display.display();
-    delay(2000);
-}
-
 
 void setup() {
     Serial.begin(115200);
@@ -347,26 +285,61 @@ void setup() {
     Wire.begin(SDA_PIN, SCL_PIN);
     display.begin(0x3C, true); // Address may be 0x3D default
 
-    display.display();
-    delay(2000);
-
-    // Clear the buffer.
     display.clearDisplay();
-
-    // draw a single pixel
-    display.drawPixel(10, 10, SH110X_WHITE);
-    // Show the display buffer on the hardware.
-    // NOTE: You _must_ call display after making any drawing commands
-    // to make them visible on the display hardware!
+    display.setTextSize(1);
+    display.setTextColor(SH110X_WHITE);
+    display.setCursor(0, 0);
+    display.println("ESPNowCam OLED");
+    display.println("Initializing...");
     display.display();
-    delay(2000);
-    display.clearDisplay();
+    delay(1000);
 
-    testdrawline();      // Draw many lines
+    dw = SCREEN_WIDTH;
+    dh = SCREEN_HEIGHT;
 
-    testdrawrect();      // Draw rectangles (outlines)
+    // Check for PSRAM
+    if (psramFound()) {
+        size_t psram_size = esp_spiram_get_size() / 1048576;
+        Serial.printf("PSRAM size: %dMb\r\n", psram_size);
 
-    testfillrect();      // Draw rectangles (filled)
+        // Allocate buffer in PSRAM
+        fb = (uint8_t *) ps_malloc(5000 * sizeof(uint8_t));
+        bwBuffer = (uint8_t *) ps_malloc(SCREEN_WIDTH * SCREEN_HEIGHT / 8); // 1-bit per pixel
+    } else {
+        // Fallback to regular memory if PSRAM not available
+        Serial.println("PSRAM not found, using regular memory");
+        fb = (uint8_t *) malloc(5000 * sizeof(uint8_t));
+        bwBuffer = (uint8_t *) malloc(SCREEN_WIDTH * SCREEN_HEIGHT / 8);
+    }
+
+
+    if (!fb || !bwBuffer) {
+        Serial.println("Memory allocation failed!");
+        display.clearDisplay();
+        display.setCursor(0, 0);
+        display.println("Memory error!");
+        display.display();
+        for (;;);
+    }
+
+    // Initialize ESPNowCam
+    radio.setRecvBuffer(fb);
+    radio.setRecvCallback(onDataReady);
+
+    if (radio.init()) {
+        display.clearDisplay();
+        display.setCursor(0, 0);
+        display.println("ESPNow Init Success");
+        display.println("Waiting for data...");
+        display.display();
+        Serial.println("ESPNow initialized successfully");
+    } else {
+        display.clearDisplay();
+        display.setCursor(0, 0);
+        display.println("ESPNow Init Failed");
+        display.display();
+        Serial.println("ESPNow initialization failed");
+    }
 
     // Joystick calibration
     calibrateJoystick();
