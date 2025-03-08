@@ -13,12 +13,6 @@
 #define MIN_RANGE (-255)
 #define MAX_RANGE 255
 
-// LED and display
-#define BACKLIGHT_PIN 4
-#ifndef LED_BUILTIN
-#define LED_BUILTIN 2
-#endif
-
 // Color theme
 #define GREEN     0x5E0A
 #define BLUE      0x04DF
@@ -62,23 +56,6 @@ TFT_eSprite footerSprite = TFT_eSprite(&tft);
 
 esp_now_peer_info_t peerInfo;
 
-// LED States
-void updateLED() {
-    static unsigned long lastBlink = 0;
-    static bool ledState = false;
-
-    if (connected) {
-        digitalWrite(LED_BUILTIN, HIGH);
-        return;
-    }
-
-    // Blink pattern when not connected
-    if (millis() - lastBlink > 200) {
-        ledState = !ledState;
-        digitalWrite(LED_BUILTIN, ledState);
-        lastBlink = millis();
-    }
-}
 
 // Send callback
 void sendCallback(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -183,10 +160,6 @@ void setupDisplay() {
     tft.init();
     tft.setRotation(1); // Landscape
     tft.fillScreen(TFT_BLACK);
-
-    // Enable backlight
-    pinMode(BACKLIGHT_PIN, OUTPUT);
-    digitalWrite(BACKLIGHT_PIN, HIGH);
 
     // Create sprites
     headerSprite.createSprite(240, 25);
@@ -371,7 +344,6 @@ void updateDisplay() {
 
 void setup() {
     Serial.begin(115200);
-    pinMode(LED_BUILTIN, OUTPUT);
     pinMode(SW_PIN, INPUT_PULLUP);
 
     // Initialize display
@@ -391,13 +363,6 @@ void setup() {
         tft.setTextColor(CRITICAL_COLOR);
         tft.setTextSize(1);
         tft.println("ESP-NOW INIT FAILED");
-
-        int c = 0;
-        while (c < 3) { // Rapid LED blink on failure
-            c++;
-            digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-            delay(100);
-        }
         return;
     }
 
@@ -415,19 +380,6 @@ void setup() {
         tft.setTextColor(CRITICAL_COLOR);
         tft.setTextSize(1);
         tft.println("FAILED TO ADD PEER");
-
-        int counter = 0;
-        while (counter < 3) { // Double blink pattern on peer error
-            counter++;
-            digitalWrite(LED_BUILTIN, HIGH);
-            delay(100);
-            digitalWrite(LED_BUILTIN, LOW);
-            delay(100);
-            digitalWrite(LED_BUILTIN, HIGH);
-            delay(100);
-            digitalWrite(LED_BUILTIN, LOW);
-            delay(500);
-        }
         return;
     }
 
@@ -435,7 +387,6 @@ void setup() {
 }
 
 void loop() {
-    updateLED();
     readJoystick();
     updateDisplay();
 
