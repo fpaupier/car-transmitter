@@ -19,13 +19,13 @@
 #define LED_BUILTIN 2
 #endif
 
-// Colors - Alien theme (green/blue tones)
-#define ALIEN_GREEN     0x5E0A
-#define ALIEN_BLUE      0x04DF
-#define ALIEN_DARK      0x0200
-#define ALIEN_TEXT      0xBFFA
-#define ALIEN_WARNING   0xF9E0
-#define ALIEN_CRITICAL  0xF800
+// Color theme
+#define GREEN     0x5E0A
+#define BLUE      0x04DF
+#define DARK      0x0200
+#define TEXT_COLOR      0xBFFA
+#define WARNING_COLOR   0xF9E0
+#define CRITICAL_COLOR  0xF800
 
 // Data structure for joystick values
 typedef struct struct_message {
@@ -145,16 +145,15 @@ void readJoystick() {
 }
 
 // Draw boot animation
-void drawAlienBootScreen() {
+void drawBootScreen() {
     tft.fillScreen(TFT_BLACK);
-    tft.setTextColor(ALIEN_GREEN);
+    tft.setTextColor(GREEN);
 
-    // Alien-style boot sequence
     for (int i = 0; i < 10; i++) {
         tft.fillScreen(TFT_BLACK);
         tft.setCursor(10, 30);
         tft.setTextSize(1);
-        tft.println("WEYLAND-YUTANI CORP.");
+        tft.println("NAZGHUL INDUSTRIES.");
         tft.setCursor(10, 50);
         tft.println("REMOTE CONTROL SYSTEM");
         tft.setCursor(10, 70);
@@ -195,15 +194,15 @@ void setupDisplay() {
     footerSprite.createSprite(240, 25);
 
     // Draw initial screen
-    drawAlienBootScreen();
+    drawBootScreen();
     delay(2000);
 }
 
 
 // Draw header with signal, battery, latency
 void drawHeader() {
-    headerSprite.fillSprite(ALIEN_DARK);
-    headerSprite.setTextColor(ALIEN_TEXT);
+    headerSprite.fillSprite(DARK);
+    headerSprite.setTextColor(TEXT_COLOR);
 
     // Draw signal strength
     headerSprite.setCursor(5, 8);
@@ -212,9 +211,9 @@ void drawHeader() {
 
     for (int i = 0; i < 5; i++) {
         if (i < signalStrength) {
-            headerSprite.fillRect(65 + (i * 8), 15 - (i * 2), 6, 3 + (i * 2), ALIEN_GREEN);
+            headerSprite.fillRect(65 + (i * 8), 15 - (i * 2), 6, 3 + (i * 2), GREEN);
         } else {
-            headerSprite.drawRect(65 + (i * 8), 15 - (i * 2), 6, 3 + (i * 2), ALIEN_GREEN);
+            headerSprite.drawRect(65 + (i * 8), 15 - (i * 2), 6, 3 + (i * 2), GREEN);
         }
     }
 
@@ -222,22 +221,22 @@ void drawHeader() {
     headerSprite.setCursor(120, 8);
     headerSprite.print("BATT:");
 
-    uint16_t battColor = remoteBattery > 50 ? ALIEN_GREEN :
-                         (remoteBattery > 20 ? ALIEN_WARNING : ALIEN_CRITICAL);
+    uint16_t battColor = remoteBattery > 50 ? GREEN :
+                         (remoteBattery > 20 ? WARNING_COLOR : CRITICAL_COLOR);
 
     headerSprite.setTextColor(battColor);
     headerSprite.print(remoteBattery);
     headerSprite.print("%");
 
     // Draw latency
-    headerSprite.setTextColor(ALIEN_TEXT);
+    headerSprite.setTextColor(TEXT_COLOR);
     headerSprite.setCursor(180, 8);
     headerSprite.print("LAT:");
     headerSprite.print(latency);
     headerSprite.print("ms");
 
     // Draw separator line
-    headerSprite.drawLine(0, 24, 240, 24, ALIEN_GREEN);
+    headerSprite.drawLine(0, 24, 240, 24, GREEN);
 
     // Push to screen
     headerSprite.pushSprite(0, 0);
@@ -252,70 +251,70 @@ void drawJoystickVisual() {
     int joyY = 42 - (joystickData.y / 8);
 
     // Draw crosshair background
-    joystickSprite.drawLine(120, 10, 120, 74, ALIEN_DARK);
-    joystickSprite.drawLine(70, 42, 170, 42, ALIEN_DARK);
+    joystickSprite.drawLine(120, 10, 120, 74, DARK);
+    joystickSprite.drawLine(70, 42, 170, 42, DARK);
 
     // Draw direction indicators based on joystick position
     if (joystickData.y < -DEADZONE) { // Forward
-        joystickSprite.fillTriangle(120, 10, 115, 20, 125, 20, ALIEN_GREEN);
+        joystickSprite.fillTriangle(120, 10, 115, 20, 125, 20, GREEN);
     } else {
-        joystickSprite.drawTriangle(120, 10, 115, 20, 125, 20, ALIEN_DARK);
+        joystickSprite.drawTriangle(120, 10, 115, 20, 125, 20, DARK);
     }
 
     if (joystickData.y > DEADZONE) { // Backward
-        joystickSprite.fillTriangle(120, 74, 115, 64, 125, 64, ALIEN_GREEN);
+        joystickSprite.fillTriangle(120, 74, 115, 64, 125, 64, GREEN);
     } else {
-        joystickSprite.drawTriangle(120, 74, 115, 64, 125, 64, ALIEN_DARK);
+        joystickSprite.drawTriangle(120, 74, 115, 64, 125, 64, DARK);
     }
 
     if (joystickData.x < -DEADZONE) { // Left
-        joystickSprite.fillTriangle(70, 42, 80, 37, 80, 47, ALIEN_GREEN);
+        joystickSprite.fillTriangle(70, 42, 80, 37, 80, 47, GREEN);
     } else {
-        joystickSprite.drawTriangle(70, 42, 80, 37, 80, 47, ALIEN_DARK);
+        joystickSprite.drawTriangle(70, 42, 80, 37, 80, 47, DARK);
     }
 
     if (joystickData.x > DEADZONE) { // Right
-        joystickSprite.fillTriangle(170, 42, 160, 37, 160, 47, ALIEN_GREEN);
+        joystickSprite.fillTriangle(170, 42, 160, 37, 160, 47, GREEN);
     } else {
-        joystickSprite.drawTriangle(170, 42, 160, 37, 160, 47, ALIEN_DARK);
+        joystickSprite.drawTriangle(170, 42, 160, 37, 160, 47, DARK);
     }
 
     // Draw diagonal indicators
     if (joystickData.x < -DEADZONE && joystickData.y < -DEADZONE) { // Forward-Left
-        joystickSprite.fillTriangle(90, 20, 95, 15, 100, 25, ALIEN_GREEN);
+        joystickSprite.fillTriangle(90, 20, 95, 15, 100, 25, GREEN);
     } else {
-        joystickSprite.drawTriangle(90, 20, 95, 15, 100, 25, ALIEN_DARK);
+        joystickSprite.drawTriangle(90, 20, 95, 15, 100, 25, DARK);
     }
 
     if (joystickData.x > DEADZONE && joystickData.y < -DEADZONE) { // Forward-Right
-        joystickSprite.fillTriangle(150, 20, 145, 15, 140, 25, ALIEN_GREEN);
+        joystickSprite.fillTriangle(150, 20, 145, 15, 140, 25, GREEN);
     } else {
-        joystickSprite.drawTriangle(150, 20, 145, 15, 140, 25, ALIEN_DARK);
+        joystickSprite.drawTriangle(150, 20, 145, 15, 140, 25, DARK);
     }
 
     if (joystickData.x < -DEADZONE && joystickData.y > DEADZONE) { // Backward-Left
-        joystickSprite.fillTriangle(90, 64, 95, 69, 100, 59, ALIEN_GREEN);
+        joystickSprite.fillTriangle(90, 64, 95, 69, 100, 59, GREEN);
     } else {
-        joystickSprite.drawTriangle(90, 64, 95, 69, 100, 59, ALIEN_DARK);
+        joystickSprite.drawTriangle(90, 64, 95, 69, 100, 59, DARK);
     }
 
     if (joystickData.x > DEADZONE && joystickData.y > DEADZONE) { // Backward-Right
-        joystickSprite.fillTriangle(150, 64, 145, 69, 140, 59, ALIEN_GREEN);
+        joystickSprite.fillTriangle(150, 64, 145, 69, 140, 59, GREEN);
     } else {
-        joystickSprite.drawTriangle(150, 64, 145, 69, 140, 59, ALIEN_DARK);
+        joystickSprite.drawTriangle(150, 64, 145, 69, 140, 59, DARK);
     }
 
     // Draw center point
-    joystickSprite.drawCircle(120, 42, 15, ALIEN_BLUE);
-    joystickSprite.drawCircle(120, 42, 5, ALIEN_BLUE);
+    joystickSprite.drawCircle(120, 42, 15, BLUE);
+    joystickSprite.drawCircle(120, 42, 5, BLUE);
 
     // Draw joystick position
     int joySize = 8;
-    joystickSprite.fillCircle(joyX, joyY, joySize, ALIEN_GREEN);
-    joystickSprite.drawCircle(joyX, joyY, joySize, ALIEN_TEXT);
+    joystickSprite.fillCircle(joyX, joyY, joySize, GREEN);
+    joystickSprite.drawCircle(joyX, joyY, joySize, TEXT_COLOR);
 
     // Draw speed indicator
-    joystickSprite.setTextColor(ALIEN_TEXT);
+    joystickSprite.setTextColor(TEXT_COLOR);
     joystickSprite.setCursor(180, 35);
     joystickSprite.setTextSize(1);
     joystickSprite.print("SPEED:");
@@ -331,26 +330,26 @@ void drawJoystickVisual() {
 
 // Draw footer with mode and car battery
 void drawFooter() {
-    footerSprite.fillSprite(ALIEN_DARK);
-    footerSprite.setTextColor(ALIEN_TEXT);
+    footerSprite.fillSprite(DARK);
+    footerSprite.setTextColor(TEXT_COLOR);
 
     // Draw separator line
-    footerSprite.drawLine(0, 0, 240, 0, ALIEN_GREEN);
+    footerSprite.drawLine(0, 0, 240, 0, GREEN);
 
     // Draw mode
     footerSprite.setCursor(10, 8);
     footerSprite.setTextSize(1);
     footerSprite.print("MODE: ");
-    footerSprite.setTextColor(ALIEN_GREEN);
+    footerSprite.setTextColor(GREEN);
     footerSprite.print(mode);
 
     // Draw car battery
-    footerSprite.setTextColor(ALIEN_TEXT);
+    footerSprite.setTextColor(TEXT_COLOR);
     footerSprite.setCursor(120, 8);
     footerSprite.print("CAR BATT: ");
 
-    uint16_t carBattColor = carBattery > 50 ? ALIEN_GREEN :
-                            (carBattery > 20 ? ALIEN_WARNING : ALIEN_CRITICAL);
+    uint16_t carBattColor = carBattery > 50 ? GREEN :
+                            (carBattery > 20 ? WARNING_COLOR : CRITICAL_COLOR);
 
     footerSprite.setTextColor(carBattColor);
     footerSprite.print(carBattery);
@@ -389,7 +388,7 @@ void setup() {
         Serial.println("ESP-NOW init failed");
         tft.fillScreen(TFT_BLACK);
         tft.setCursor(20, 60);
-        tft.setTextColor(ALIEN_CRITICAL);
+        tft.setTextColor(CRITICAL_COLOR);
         tft.setTextSize(1);
         tft.println("ESP-NOW INIT FAILED");
 
@@ -413,7 +412,7 @@ void setup() {
         Serial.println("Failed to add peer");
         tft.fillScreen(TFT_BLACK);
         tft.setCursor(20, 60);
-        tft.setTextColor(ALIEN_CRITICAL);
+        tft.setTextColor(CRITICAL_COLOR);
         tft.setTextSize(1);
         tft.println("FAILED TO ADD PEER");
 
