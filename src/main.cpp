@@ -1,122 +1,31 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <Arduino.h>
-#include <Adafruit_SH110X.h>
-#include <HardwareSerial.h>
-#include <Wire.h>
-#include <ESPNowCam.h>
-#include <TJpg_Decoder.h>
-
+#include <TFT_eSPI.h>
 #include "secrets.h"
 
 // Joystick pins
-#define VRX_PIN   34
-#define VRY_PIN   35
-#define SW_PIN    32
+#define VRX_PIN   32
+#define VRY_PIN   33
+#define SW_PIN    27
 #define DEADZONE  50
 #define NUM_CALIBRATIONS 20
 #define MIN_RANGE (-255)
 #define MAX_RANGE 255
 
-// Display pin
-#define SDA_PIN 21
-#define SCL_PIN 22
-
-
+// LED and display
+#define BACKLIGHT_PIN 4
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
 
-
-#define SCREEN_WIDTH 128  // OLED display width, in pixels
-#define SCREEN_HEIGHT 128 // OLED display height, in pixels
-#define OLED_RESET (-1)     // can set an oled reset pin if desired
-
-Adafruit_SH1107 display = Adafruit_SH1107(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET, 1000000, 100000);
-
-
-// ESPNowCam instance
-ESPNowCam radio;
-
-// Frame buffer
-uint8_t *fb;
-uint8_t *bwBuffer; // Buffer for black and white converted image
-
-// Display globals
-int32_t dw, dh;
-unsigned long lastFrameTime = 0;
-float fps = 0;
-
-// Callback function for TJpg_Decoder
-bool jpegRenderer(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap) {
-    // Process each pixel in the decoded block
-    for (int16_t j = 0; j < h; j++) {
-        for (int16_t i = 0; i < w; i++) {
-            // Skip if outside display boundaries
-            if ((x + i) >= SCREEN_WIDTH || (y + j) >= SCREEN_HEIGHT) continue;
-
-            // Get the pixel color (RGB565 format)
-            uint16_t pixel = bitmap[j * w + i];
-
-            // Extract RGB components
-            uint8_t r = (pixel >> 11) & 0x1F;
-            uint8_t g = (pixel >> 5) & 0x3F;
-            uint8_t b = pixel & 0x1F;
-
-            // Convert to grayscale using standard luminance formula
-            // Scale R5G6B5 to 0-255 range first
-            r = (r * 255) / 31;
-            g = (g * 255) / 63;
-            b = (b * 255) / 31;
-            uint8_t gray = (r * 30 + g * 59 + b * 11) / 100;
-
-            // Apply threshold to convert to pure black or white (128 is the threshold)
-            bool isWhite = (gray > 128);
-
-            // Draw the pixel on the display
-            display.drawPixel(x + i, y + j, isWhite ? SH110X_WHITE : SH110X_BLACK);
-        }
-    }
-    return true;
-}
-
-
-void printFPS() {
-    unsigned long currentTime = millis();
-    if (lastFrameTime > 0) {
-        fps = 1000.0 / (currentTime - lastFrameTime);
-    }
-    lastFrameTime = currentTime;
-
-    Serial.print("FPS: ");
-    Serial.println(fps);
-}
-
-
-void onDataReady(uint32_t length) {
-    // Clear display before drawing new image
-    display.clearDisplay();
-
-    // Configure and use TJpg_Decoder
-    TJpgDec.setJpgScale(1); // No scaling
-    TJpgDec.setCallback(jpegRenderer);
-
-    // Decode the JPEG data
-    TJpgDec.drawJpg(0, 0, fb, length);
-
-    // Update the display
-    display.display();
-
-    // Print FPS info
-    static unsigned long lastFrameTime = 0;
-    unsigned long currentTime = millis();
-    if (lastFrameTime > 0) {
-        float fps = 1000.0 / (currentTime - lastFrameTime);
-        Serial.printf("FPS: %.1f\n", fps);
-    }
-    lastFrameTime = currentTime;
-}
-
+// Colors - Alien theme (green/blue tones)
+#define ALIEN_GREEN     0x5E0A
+#define ALIEN_BLUE      0x04DF
+#define ALIEN_DARK      0x0200
+#define ALIEN_TEXT      0xBFFA
+#define ALIEN_WARNING   0xF9E0
+#define ALIEN_CRITICAL  0xF800
 
 // Data structure for joystick values
 typedef struct struct_message {
@@ -136,6 +45,20 @@ int yMax = 4095;
 struct_message joystickData;
 bool connected = false;
 unsigned long lastSendTime = 0;
+unsigned long lastDisplayUpdate = 0;
+unsigned long lastSignalUpdate = 0;
+int signalStrength = 3; // 0-5 scale
+int carBattery = 76;    // Placeholder
+int remoteBattery = 85; // Placeholder
+int latency = 24;       // Placeholder in ms
+int speed = 0;          // Calculated from joystick values
+String mode = "RACE";   // Current mode
+
+// Initialize display
+TFT_eSPI tft = TFT_eSPI();
+TFT_eSprite headerSprite = TFT_eSprite(&tft);
+TFT_eSprite joystickSprite = TFT_eSprite(&tft);
+TFT_eSprite footerSprite = TFT_eSprite(&tft);
 
 esp_now_peer_info_t peerInfo;
 
@@ -159,9 +82,17 @@ void updateLED() {
 
 // Send callback
 void sendCallback(const uint8_t *mac_addr, esp_now_send_status_t status) {
-//    Serial.print("\r\nLast Packet Send Status:\t");
-//    Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
     connected = (status == ESP_NOW_SEND_SUCCESS);
+
+    // Update signal strength based on success/failure
+    if (millis() - lastSignalUpdate > 1000) { // Update once per second
+        if (connected) {
+            if (signalStrength < 5) signalStrength++;
+        } else {
+            if (signalStrength > 0) signalStrength--;
+        }
+        lastSignalUpdate = millis();
+    }
 }
 
 void calibrateJoystick() {
@@ -207,12 +138,237 @@ void readJoystick() {
 
     joystickData.x = applyDeadzone(mappedX, DEADZONE);
     joystickData.y = applyDeadzone(mappedY, DEADZONE);
-
     joystickData.button = !digitalRead(SW_PIN);
-    Serial.printf("X: %4d (Raw X: %4d)| Y: %4d (Raw Y: %4d)| BTN: %d\n", joystickData.x, rawX, joystickData.y, rawY,
-                  joystickData.button);
+
+    // Calculate simulated speed based on joystick Y position
+    speed = map(abs(joystickData.y), 0, 255, 0, 35);
 }
 
+// Draw boot animation
+void drawAlienBootScreen() {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(ALIEN_GREEN);
+
+    // Alien-style boot sequence
+    for (int i = 0; i < 10; i++) {
+        tft.fillScreen(TFT_BLACK);
+        tft.setCursor(10, 30);
+        tft.setTextSize(1);
+        tft.println("WEYLAND-YUTANI CORP.");
+        tft.setCursor(10, 50);
+        tft.println("REMOTE CONTROL SYSTEM");
+        tft.setCursor(10, 70);
+        tft.println("INITIALIZING...");
+        tft.setCursor(10, 90);
+        tft.print("PROGRESS: [");
+        for (int j = 0; j < i; j++) {
+            tft.print("=");
+        }
+        for (int j = i; j < 10; j++) {
+            tft.print(" ");
+        }
+        tft.println("]");
+        delay(100);
+    }
+
+    tft.fillScreen(TFT_BLACK);
+    tft.setCursor(20, 60);
+    tft.setTextSize(2);
+    tft.println("SYSTEM READY");
+    delay(500);
+}
+
+// Initialize display and sprites
+void setupDisplay() {
+    // Initialize TFT
+    tft.init();
+    tft.setRotation(1); // Landscape
+    tft.fillScreen(TFT_BLACK);
+
+    // Enable backlight
+    pinMode(BACKLIGHT_PIN, OUTPUT);
+    digitalWrite(BACKLIGHT_PIN, HIGH);
+
+    // Create sprites
+    headerSprite.createSprite(240, 25);
+    joystickSprite.createSprite(240, 85);
+    footerSprite.createSprite(240, 25);
+
+    // Draw initial screen
+    drawAlienBootScreen();
+    delay(2000);
+}
+
+
+// Draw header with signal, battery, latency
+void drawHeader() {
+    headerSprite.fillSprite(ALIEN_DARK);
+    headerSprite.setTextColor(ALIEN_TEXT);
+
+    // Draw signal strength
+    headerSprite.setCursor(5, 8);
+    headerSprite.setTextSize(1);
+    headerSprite.print("SIGNAL:");
+
+    for (int i = 0; i < 5; i++) {
+        if (i < signalStrength) {
+            headerSprite.fillRect(65 + (i * 8), 15 - (i * 2), 6, 3 + (i * 2), ALIEN_GREEN);
+        } else {
+            headerSprite.drawRect(65 + (i * 8), 15 - (i * 2), 6, 3 + (i * 2), ALIEN_GREEN);
+        }
+    }
+
+    // Draw remote battery
+    headerSprite.setCursor(120, 8);
+    headerSprite.print("BATT:");
+
+    uint16_t battColor = remoteBattery > 50 ? ALIEN_GREEN :
+                         (remoteBattery > 20 ? ALIEN_WARNING : ALIEN_CRITICAL);
+
+    headerSprite.setTextColor(battColor);
+    headerSprite.print(remoteBattery);
+    headerSprite.print("%");
+
+    // Draw latency
+    headerSprite.setTextColor(ALIEN_TEXT);
+    headerSprite.setCursor(180, 8);
+    headerSprite.print("LAT:");
+    headerSprite.print(latency);
+    headerSprite.print("ms");
+
+    // Draw separator line
+    headerSprite.drawLine(0, 24, 240, 24, ALIEN_GREEN);
+
+    // Push to screen
+    headerSprite.pushSprite(0, 0);
+}
+
+// Draw joystick visualization
+void drawJoystickVisual() {
+    joystickSprite.fillSprite(TFT_BLACK);
+
+    // Calculate joystick position (centered at 120,42)
+    int joyX = 120 + (joystickData.x / 8);
+    int joyY = 42 - (joystickData.y / 8);
+
+    // Draw crosshair background
+    joystickSprite.drawLine(120, 10, 120, 74, ALIEN_DARK);
+    joystickSprite.drawLine(70, 42, 170, 42, ALIEN_DARK);
+
+    // Draw direction indicators based on joystick position
+    if (joystickData.y < -DEADZONE) { // Forward
+        joystickSprite.fillTriangle(120, 10, 115, 20, 125, 20, ALIEN_GREEN);
+    } else {
+        joystickSprite.drawTriangle(120, 10, 115, 20, 125, 20, ALIEN_DARK);
+    }
+
+    if (joystickData.y > DEADZONE) { // Backward
+        joystickSprite.fillTriangle(120, 74, 115, 64, 125, 64, ALIEN_GREEN);
+    } else {
+        joystickSprite.drawTriangle(120, 74, 115, 64, 125, 64, ALIEN_DARK);
+    }
+
+    if (joystickData.x < -DEADZONE) { // Left
+        joystickSprite.fillTriangle(70, 42, 80, 37, 80, 47, ALIEN_GREEN);
+    } else {
+        joystickSprite.drawTriangle(70, 42, 80, 37, 80, 47, ALIEN_DARK);
+    }
+
+    if (joystickData.x > DEADZONE) { // Right
+        joystickSprite.fillTriangle(170, 42, 160, 37, 160, 47, ALIEN_GREEN);
+    } else {
+        joystickSprite.drawTriangle(170, 42, 160, 37, 160, 47, ALIEN_DARK);
+    }
+
+    // Draw diagonal indicators
+    if (joystickData.x < -DEADZONE && joystickData.y < -DEADZONE) { // Forward-Left
+        joystickSprite.fillTriangle(90, 20, 95, 15, 100, 25, ALIEN_GREEN);
+    } else {
+        joystickSprite.drawTriangle(90, 20, 95, 15, 100, 25, ALIEN_DARK);
+    }
+
+    if (joystickData.x > DEADZONE && joystickData.y < -DEADZONE) { // Forward-Right
+        joystickSprite.fillTriangle(150, 20, 145, 15, 140, 25, ALIEN_GREEN);
+    } else {
+        joystickSprite.drawTriangle(150, 20, 145, 15, 140, 25, ALIEN_DARK);
+    }
+
+    if (joystickData.x < -DEADZONE && joystickData.y > DEADZONE) { // Backward-Left
+        joystickSprite.fillTriangle(90, 64, 95, 69, 100, 59, ALIEN_GREEN);
+    } else {
+        joystickSprite.drawTriangle(90, 64, 95, 69, 100, 59, ALIEN_DARK);
+    }
+
+    if (joystickData.x > DEADZONE && joystickData.y > DEADZONE) { // Backward-Right
+        joystickSprite.fillTriangle(150, 64, 145, 69, 140, 59, ALIEN_GREEN);
+    } else {
+        joystickSprite.drawTriangle(150, 64, 145, 69, 140, 59, ALIEN_DARK);
+    }
+
+    // Draw center point
+    joystickSprite.drawCircle(120, 42, 15, ALIEN_BLUE);
+    joystickSprite.drawCircle(120, 42, 5, ALIEN_BLUE);
+
+    // Draw joystick position
+    int joySize = 8;
+    joystickSprite.fillCircle(joyX, joyY, joySize, ALIEN_GREEN);
+    joystickSprite.drawCircle(joyX, joyY, joySize, ALIEN_TEXT);
+
+    // Draw speed indicator
+    joystickSprite.setTextColor(ALIEN_TEXT);
+    joystickSprite.setCursor(180, 35);
+    joystickSprite.setTextSize(1);
+    joystickSprite.print("SPEED:");
+    joystickSprite.setCursor(180, 50);
+    joystickSprite.setTextSize(2);
+    joystickSprite.print(speed);
+    joystickSprite.setTextSize(1);
+    joystickSprite.print(" km/h");
+
+    // Push to screen
+    joystickSprite.pushSprite(0, 25);
+}
+
+// Draw footer with mode and car battery
+void drawFooter() {
+    footerSprite.fillSprite(ALIEN_DARK);
+    footerSprite.setTextColor(ALIEN_TEXT);
+
+    // Draw separator line
+    footerSprite.drawLine(0, 0, 240, 0, ALIEN_GREEN);
+
+    // Draw mode
+    footerSprite.setCursor(10, 8);
+    footerSprite.setTextSize(1);
+    footerSprite.print("MODE: ");
+    footerSprite.setTextColor(ALIEN_GREEN);
+    footerSprite.print(mode);
+
+    // Draw car battery
+    footerSprite.setTextColor(ALIEN_TEXT);
+    footerSprite.setCursor(120, 8);
+    footerSprite.print("CAR BATT: ");
+
+    uint16_t carBattColor = carBattery > 50 ? ALIEN_GREEN :
+                            (carBattery > 20 ? ALIEN_WARNING : ALIEN_CRITICAL);
+
+    footerSprite.setTextColor(carBattColor);
+    footerSprite.print(carBattery);
+    footerSprite.print("%");
+
+    // Push to screen
+    footerSprite.pushSprite(0, 110);
+}
+
+// Update the display
+void updateDisplay() {
+    if (millis() - lastDisplayUpdate > 50) { // 20 FPS update rate
+        drawHeader();
+        drawJoystickVisual();
+        drawFooter();
+        lastDisplayUpdate = millis();
+    }
+}
 
 void setup() {
     Serial.begin(115200);
@@ -220,68 +376,7 @@ void setup() {
     pinMode(SW_PIN, INPUT_PULLUP);
 
     // Initialize display
-    Wire.begin(SDA_PIN, SCL_PIN);
-    display.begin(0x3C, true); // Address may be 0x3D default
-
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SH110X_WHITE);
-    display.setCursor(0, 0);
-    display.println("ESPNowCam OLED");
-    display.println("Initializing...");
-    display.display();
-    delay(1000);
-
-    dw = SCREEN_WIDTH;
-    dh = SCREEN_HEIGHT;
-
-    // Check for PSRAM
-    if (psramFound()) {
-        size_t psram_size = esp_spiram_get_size() / 1048576;
-        Serial.printf("PSRAM size: %dMb\r\n", psram_size);
-
-        // Allocate buffer in PSRAM
-        fb = (uint8_t *) ps_malloc(5000 * sizeof(uint8_t));
-        bwBuffer = (uint8_t *) ps_malloc(SCREEN_WIDTH * SCREEN_HEIGHT / 8); // 1-bit per pixel
-    } else {
-        // Fallback to regular memory if PSRAM not available
-        Serial.println("PSRAM not found, using regular memory");
-        fb = (uint8_t *) malloc(5000 * sizeof(uint8_t));
-        bwBuffer = (uint8_t *) malloc(SCREEN_WIDTH * SCREEN_HEIGHT / 8);
-    }
-
-
-    if (!fb || !bwBuffer) {
-        Serial.println("Memory allocation failed!");
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("Memory error!");
-        display.display();
-        for (;;);
-    }
-
-    // Initialize TJpg_Decoder
-    TJpgDec.setJpgScale(1); // No scaling
-    TJpgDec.setCallback(jpegRenderer);
-
-    // Initialize ESPNowCam
-    radio.setRecvBuffer(fb);
-    radio.setRecvCallback(onDataReady);
-
-    if (radio.init()) {
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("ESPNow Init Success");
-        display.println("Waiting for data...");
-        display.display();
-        Serial.println("ESPNow initialized successfully");
-    } else {
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("ESPNow Init Failed");
-        display.display();
-        Serial.println("ESPNow initialization failed");
-    }
+    setupDisplay();
 
     // Joystick calibration
     calibrateJoystick();
@@ -292,6 +387,12 @@ void setup() {
     // Initialize ESP-NOW
     if (esp_now_init() != ESP_OK) {
         Serial.println("ESP-NOW init failed");
+        tft.fillScreen(TFT_BLACK);
+        tft.setCursor(20, 60);
+        tft.setTextColor(ALIEN_CRITICAL);
+        tft.setTextSize(1);
+        tft.println("ESP-NOW INIT FAILED");
+
         int c = 0;
         while (c < 3) { // Rapid LED blink on failure
             c++;
@@ -310,6 +411,12 @@ void setup() {
 
     if (esp_now_add_peer(&peerInfo) != ESP_OK) {
         Serial.println("Failed to add peer");
+        tft.fillScreen(TFT_BLACK);
+        tft.setCursor(20, 60);
+        tft.setTextColor(ALIEN_CRITICAL);
+        tft.setTextSize(1);
+        tft.println("FAILED TO ADD PEER");
+
         int counter = 0;
         while (counter < 3) { // Double blink pattern on peer error
             counter++;
@@ -324,17 +431,30 @@ void setup() {
         }
         return;
     }
-    // Register callback once during setup
+
     Serial.println("Transmitter initialized");
 }
 
 void loop() {
     updateLED();
     readJoystick();
+    updateDisplay();
+
     if (millis() - lastSendTime > 20) { // 50Hz refresh rate
         if (esp_now_send(RECEIVER_MAC_ADDRESS, (uint8_t *) &joystickData, sizeof(joystickData)) != ESP_OK) {
             Serial.println("Send Failed");
         }
         lastSendTime = millis();
+    }
+
+    // Simulate battery drain (for demo purposes)
+    if (millis() % 60000 == 0) { // Every minute
+        if (remoteBattery > 0) remoteBattery--;
+        if (carBattery > 0) carBattery--;
+    }
+
+    // Simulate latency fluctuations (for demo purposes)
+    if (millis() % 5000 == 0) { // Every 5 seconds
+        latency = random(15, 35);
     }
 }
