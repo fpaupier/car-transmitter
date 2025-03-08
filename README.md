@@ -11,7 +11,7 @@ white OLED is not useful to display camera feed, to work on that
 ## Getting the receiver MAC adress
 
 ESPNOW protocol requires the MAC address of the receiver device,
-you can get it with this snippet
+you can get it with this snippet to run on your receiver.
 
 ```cpp
 #include <WiFi.h>
