@@ -45,3 +45,10 @@ this:
 5. Save the file.
 
 Once you do this, the library will work with the TTGO module. Source: DroneBot workshop https://dronebotworkshop.com/mecanum/
+
+
+# Gotchas
+
+- y Axis was inverted on my analog joystick so I had to adpt to this in my code
+- 5V of the joystick is actually plugged to the 3.3V of the esp, otheriwse you have erratic measures
+- to get the display working, amek sure to update the ``Setup25_TTGO_T_Display`` in the  TFT-eSPI Library by Bodmer
