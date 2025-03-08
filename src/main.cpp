@@ -18,7 +18,6 @@
 #define BLUE      0x04DF
 #define DARK      0x0200
 #define TEXT_COLOR      0xBFFA
-#define WARNING_COLOR   0xF9E0
 #define CRITICAL_COLOR  0xF800
 
 // Data structure for joystick values
@@ -41,10 +40,7 @@ bool connected = false;
 unsigned long lastSendTime = 0;
 unsigned long lastDisplayUpdate = 0;
 unsigned long lastSignalUpdate = 0;
-int signalStrength = 3; // 0-5 scale
-int carBattery = 76;    // Placeholder
-int remoteBattery = 85; // Placeholder
-int latency = 24;       // Placeholder in ms
+int signalStrength = 0; // 0-5 scale
 int speed = 0;          // Calculated from joystick values
 String mode = "RACE";   // Current mode
 
@@ -118,7 +114,7 @@ void readJoystick() {
     joystickData.button = !digitalRead(SW_PIN);
 
     // Calculate simulated speed based on joystick Y position
-    speed = map(abs(joystickData.y), 0, 255, 0, 35);
+    speed = map(abs(joystickData.y), 0, 255, 0, 100);
 }
 
 // Draw boot animation
@@ -172,7 +168,7 @@ void setupDisplay() {
 }
 
 
-// Draw header with signal, battery, latency
+// Draw header with signal, battery
 void drawHeader() {
     headerSprite.fillSprite(DARK);
     headerSprite.setTextColor(TEXT_COLOR);
@@ -189,24 +185,6 @@ void drawHeader() {
             headerSprite.drawRect(65 + (i * 8), 15 - (i * 2), 6, 3 + (i * 2), GREEN);
         }
     }
-
-    // Draw remote battery
-    headerSprite.setCursor(120, 8);
-    headerSprite.print("BATT:");
-
-    uint16_t battColor = remoteBattery > 50 ? GREEN :
-                         (remoteBattery > 20 ? WARNING_COLOR : CRITICAL_COLOR);
-
-    headerSprite.setTextColor(battColor);
-    headerSprite.print(remoteBattery);
-    headerSprite.print("%");
-
-    // Draw latency
-    headerSprite.setTextColor(TEXT_COLOR);
-    headerSprite.setCursor(180, 8);
-    headerSprite.print("LAT:");
-    headerSprite.print(latency);
-    headerSprite.print("ms");
 
     // Draw separator line
     headerSprite.drawLine(0, 24, 240, 24, GREEN);
@@ -295,7 +273,7 @@ void drawJoystickVisual() {
     joystickSprite.setTextSize(2);
     joystickSprite.print(speed);
     joystickSprite.setTextSize(1);
-    joystickSprite.print(" km/h");
+    joystickSprite.print(" %");
 
     // Push to screen
     joystickSprite.pushSprite(0, 25);
@@ -316,25 +294,13 @@ void drawFooter() {
     footerSprite.setTextColor(GREEN);
     footerSprite.print(mode);
 
-    // Draw car battery
-    footerSprite.setTextColor(TEXT_COLOR);
-    footerSprite.setCursor(120, 8);
-    footerSprite.print("CAR BATT: ");
-
-    uint16_t carBattColor = carBattery > 50 ? GREEN :
-                            (carBattery > 20 ? WARNING_COLOR : CRITICAL_COLOR);
-
-    footerSprite.setTextColor(carBattColor);
-    footerSprite.print(carBattery);
-    footerSprite.print("%");
-
     // Push to screen
     footerSprite.pushSprite(0, 110);
 }
 
 // Update the display
 void updateDisplay() {
-    if (millis() - lastDisplayUpdate > 50) { // 20 FPS update rate
+    if (millis() - lastDisplayUpdate > 50) {
         drawHeader();
         drawJoystickVisual();
         drawFooter();
@@ -389,22 +355,10 @@ void setup() {
 void loop() {
     readJoystick();
     updateDisplay();
-
-    if (millis() - lastSendTime > 20) { // 50Hz refresh rate
+    if (millis() - lastSendTime > 20) {
         if (esp_now_send(RECEIVER_MAC_ADDRESS, (uint8_t *) &joystickData, sizeof(joystickData)) != ESP_OK) {
             Serial.println("Send Failed");
         }
         lastSendTime = millis();
-    }
-
-    // Simulate battery drain (for demo purposes)
-    if (millis() % 60000 == 0) { // Every minute
-        if (remoteBattery > 0) remoteBattery--;
-        if (carBattery > 0) carBattery--;
-    }
-
-    // Simulate latency fluctuations (for demo purposes)
-    if (millis() % 5000 == 0) { // Every 5 seconds
-        latency = random(15, 35);
     }
 }
