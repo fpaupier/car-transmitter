@@ -134,7 +134,7 @@ void readJoystick() {
     int rawY = analogRead(VRY_PIN);
 
     int mappedX = mapJoystickToRange(rawX, xMin, xMax, xCenter, MIN_RANGE, MAX_RANGE);
-    int mappedY = mapJoystickToRange(rawY, yMin, yMax, yCenter, MIN_RANGE, MAX_RANGE);
+    int mappedY = -mapJoystickToRange(rawY, yMin, yMax, yCenter, MIN_RANGE, MAX_RANGE);
 
     joystickData.x = applyDeadzone(mappedX, DEADZONE);
     joystickData.y = applyDeadzone(mappedY, DEADZONE);
@@ -254,14 +254,14 @@ void drawJoystickVisual() {
     joystickSprite.drawLine(120, 10, 120, 74, DARK);
     joystickSprite.drawLine(70, 42, 170, 42, DARK);
 
-    // Draw direction indicators based on joystick position
-    if (joystickData.y < -DEADZONE) { // Forward
+// Draw direction indicators based on joystick position
+    if (joystickData.y > DEADZONE) { // Forward (inverted from original)
         joystickSprite.fillTriangle(120, 10, 115, 20, 125, 20, GREEN);
     } else {
         joystickSprite.drawTriangle(120, 10, 115, 20, 125, 20, DARK);
     }
 
-    if (joystickData.y > DEADZONE) { // Backward
+    if (joystickData.y < -DEADZONE) { // Backward (inverted from original)
         joystickSprite.fillTriangle(120, 74, 115, 64, 125, 64, GREEN);
     } else {
         joystickSprite.drawTriangle(120, 74, 115, 64, 125, 64, DARK);
@@ -279,26 +279,26 @@ void drawJoystickVisual() {
         joystickSprite.drawTriangle(170, 42, 160, 37, 160, 47, DARK);
     }
 
-    // Draw diagonal indicators
-    if (joystickData.x < -DEADZONE && joystickData.y < -DEADZONE) { // Forward-Left
+// Draw diagonal indicators
+    if (joystickData.x < -DEADZONE && joystickData.y > DEADZONE) { // Forward-Left (inverted Y)
         joystickSprite.fillTriangle(90, 20, 95, 15, 100, 25, GREEN);
     } else {
         joystickSprite.drawTriangle(90, 20, 95, 15, 100, 25, DARK);
     }
 
-    if (joystickData.x > DEADZONE && joystickData.y < -DEADZONE) { // Forward-Right
+    if (joystickData.x > DEADZONE && joystickData.y > DEADZONE) { // Forward-Right (inverted Y)
         joystickSprite.fillTriangle(150, 20, 145, 15, 140, 25, GREEN);
     } else {
         joystickSprite.drawTriangle(150, 20, 145, 15, 140, 25, DARK);
     }
 
-    if (joystickData.x < -DEADZONE && joystickData.y > DEADZONE) { // Backward-Left
+    if (joystickData.x < -DEADZONE && joystickData.y < -DEADZONE) { // Backward-Left (inverted Y)
         joystickSprite.fillTriangle(90, 64, 95, 69, 100, 59, GREEN);
     } else {
         joystickSprite.drawTriangle(90, 64, 95, 69, 100, 59, DARK);
     }
 
-    if (joystickData.x > DEADZONE && joystickData.y > DEADZONE) { // Backward-Right
+    if (joystickData.x > DEADZONE && joystickData.y < -DEADZONE) { // Backward-Right (inverted Y)
         joystickSprite.fillTriangle(150, 64, 145, 69, 140, 59, GREEN);
     } else {
         joystickSprite.drawTriangle(150, 64, 145, 69, 140, 59, DARK);
