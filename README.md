@@ -1,8 +1,8 @@
+# Car controller
+
 ![ESP-NOW](https://img.shields.io/badge/Protocol-ESP--NOW-brightgreen)
 ![ESP32](https://img.shields.io/badge/Board-ESP32-blue)
 ![PlatformIO](https://img.shields.io/badge/Framework-PlatformIO-orange)
-
-# Car controller
 
 This project documents how to create a simple remote control to pilot an RC car that uses another ESP32 through the ESP
 NOW protocol.
@@ -16,12 +16,18 @@ https://www.youtube.com/watch?v=dZttHOxIoek
 ## Hardware - Building the controller
 
 We use only two components, a Lilygo TTGO T-Display and an analog joystick to pilot the car. The builtin screen of the
-TTGO makes it very convenient to display some infos on the joystick orientation and speed.  
+TTGO makes it very convenient to display some infos on the joystick orientation and speed.
+
+<details closed>
+
+<summary>Click to display images</summary>
+
 ![here](./doc/controller-perfboard.png)
 
 _Note_: In the initial version of this controller, I tried using a small 1.12 monochrome OLED display, but it was
 inconvenient to use.
 ![transmitter](./doc/controller-breadboard.jpg)
+</details>
 
 ### Sourcing the components
 
@@ -54,7 +60,6 @@ _Illustration from the drone workshop_
 > **Prerequisite**: this project use platform IO to build the project and upload it to the ESP32. You will need to
 > install,
 > see [PlatformIO.org](https://platformio.org/)
-
 
 ### Getting the receiver MAC address
 
@@ -113,8 +118,6 @@ car-transmitter/
 │   ├── display.cpp        // Display implementation
 │   └── communication.cpp  // Communication implementation
 ```
-
-
 
 ## Gotchas
 
