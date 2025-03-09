@@ -7,6 +7,8 @@
 This project documents how to create a simple remote control to pilot an RC car that uses another ESP32 through the ESP
 NOW protocol.
 
+> We managed to reach 115 m distance between receiver and transmitter and keep controlling the car within this range.
+
 For the RC car related parts and code, refer to the dedicated
 repo: [github.com/fpaupier/car](https://github.com/fpaupier/car)
 
