@@ -1,27 +1,45 @@
-# Car Transmitter
+![ESP-NOW](https://img.shields.io/badge/Protocol-ESP--NOW-brightgreen)
+![ESP32](https://img.shields.io/badge/Board-ESP32-blue)
+![PlatformIO](https://img.shields.io/badge/Framework-PlatformIO-orange)
 
-Remote control using ESPNOW to connect to RC car and control the car with an analog joystick.
+# Car controller
 
-Protocol used ESP NOW use a Githhub shield badge for the protocol used (ESP NOW) and another badge the type of board (ESP32) 
+This project documents how to create a simple remote control to pilot an RC car that uses another ESP32 through the ESP
+NOW protocol.
 
-Related to other project for the car receievr
+For the RC car related parts and code, refer to the dedicated
+repo: [github.com/fpaupier/car](https://github.com/fpaupier/car)
 
-Note: this project is inspired from the  "Mecanum Wheel Robot Car & ESP-NOW Remote" from the drone Workshop
+> Note: This project is inspired from the  "_Mecanum Wheel Robot Car & ESP-NOW Remote_" video from the drone Workshop
 https://www.youtube.com/watch?v=dZttHOxIoek
 
-## Controller illustration
+## Hardware - Building the controller
 
-Using an analog joystick to control the car the OLED display was a tentative to show the on board camera but black and
-white OLED is not useful to display camera feed, to work on that  
+We use only two components, a Lilygo TTGO T-Display and an analog joystick to pilot the car. The builtin screen of the
+TTGO makes it very convenient to display some infos on the joystick orientation and speed.  
+![here](./doc/controller-perfboard.png)
+
+_Note_: In the initial version of this controller, I tried using a small 1.12 monochrome OLED display, but it was
+inconvenient to use.
 ![transmitter](./doc/controller-breadboard.jpg)
 
-For the final version mounted on a perfboard see [here](./doc/controller-perfboard.png)
+### Sourcing the components
 
-## Receiver pin illustration
+Bill of material - I actually bought the materials on those website - french resellers - (price as of March, 9th 2025)
+
+| Component                                         | Source                                                                                                     | Price (EUR) | Quantity | Total Price (EUR) |
+|---------------------------------------------------|------------------------------------------------------------------------------------------------------------|-------------|----------|-------------------|
+| TTGO T-Display ESP32 LCD                          | [Passion-Radio.fr](https://www.passion-radio.fr/materiel-wifi/esp32-lilygo-895.html)                       | 13.90       | 1        | 13.90             |
+| Analog Joystick                                   | [Kubii](https://www.kubii.com/fr/controleurs-actionneurs/2043-module-joystick-xy-kubii-3272496009035.html) | 2.45        | 2        | 2.45              |
+| 3.7V Battery (did not managed to get it work yet) | [RF-Market.fr](https://rf-market.fr/meshtastic/1441-batterie-lipo-37v-1200mah-jst-125mm-2-broches.html)    | 5.90        | 1        | 5.90              |
+| **Total**                                         |                                                                                                            |             |          | **22.25€**        |
+
+### Wiring instruction
 
 ![pin layout](./doc/pin-layout.png)
+_Illustration from the drone workshop_
 
-### Wiring diagram
+#### Wiring table
 
 | TTGO Pin | Joystick Pin | Description                                                                                          |
 |----------|--------------|------------------------------------------------------------------------------------------------------|
@@ -31,10 +49,18 @@ For the final version mounted on a perfboard see [here](./doc/controller-perfboa
 | GP33     | Y AXIS       | Analog input for Y-axis                                                                              |
 | GP27     | SWITCH       | Digital input for joystick button                                                                    |
 
-## Getting the receiver MAC adress
+## Software - Code to run the controller
 
-ESPNOW protocol requires the MAC address of the receiver device (the other esp2 device on board of the RC car),
-you can get it with this snippet to run on your receiver.
+> **Prerequisite**: this project use platform IO to build the project and upload it to the ESP32. You will need to
+> install,
+> see [PlatformIO.org](https://platformio.org/)
+
+
+### Getting the receiver MAC address
+
+Since we use [ESP-NOW](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html)
+for the two ESP32 to communicate, you need to have the MAC address of the receiver device (it's based on WiFi).
+On your receiver device, you can run the snippet below to get its MAC address.
 
 ```cpp
 #include <WiFi.h>
@@ -51,38 +77,28 @@ void loop() {
 }
 ```
 
-## TFT-eSPI Library Modifications
+### Configuring the display library
 
-The sketch we will be writing for the controller will use the TFT-eSPI Library by Bodmer. You can install this library
-using the Library Manager in the Arduino IDE. You might have already installed it if you followed my instructions in the
-article about using Round LCD Modules, but you may need to update it, as it needs to be at least version 2.4.79 to work
-with the TTGO displays.
+_Tips from the Drone workshop_
+The sketch we will be writing for the controller use the TFT-eSPI Library by Bodmer. We list it in as dependency in the `platformio.ini` file.
 
-After installing it, you will need to modify a file in the library to work with the TTGO T-Display. Here is how you do
+After installing it, **you will need to modify a file in the library** to work with the TTGO T-Display. Here is how you do
 this:
 
-1. Navigate to the TFT_eSPI folder in your libraries folder (which usually lives under your Arduino folder).
-2. Look for User_Setup_Select.h and open it with a text editor.
-3. Comment out line 30, which reads `#include <User_Setup.h>`
-4. Uncomment line 61, which reads `#include <User_Setups/Setup25_TTGO_T_Display.h>`
+1. Navigate to the `TFT_eSPI` folder in your libraries folder (which usually lives under your `.pio/libdeps/lilygo-t-display` folder).
+2. Look for `User_Setup_Select.h` and open it
+3. Comment out line 27, which reads `#include <User_Setup.h>`
+4. Uncomment line 58, which reads `#include <User_Setups/Setup25_TTGO_T_Display.h>`
 5. Save the file.
 
-Once you do this, the library will work with the TTGO module. Source: DroneBot
-workshop https://dronebotworkshop.com/mecanum/
+Once you do this, the library will work with the TTGO module!
 
-# Gotchas
+### Source code structure
 
-- y Axis was inverted on my analog joystick so I had to adpt to this in my code
-- 5V of the joystick is actually plugged to the 3.3V of the esp, otheriwse you have erratic measures
-- to get the display working, amek sure to update the ``Setup25_TTGO_T_Display`` in the TFT-eSPI Library by Bodmer
 
-## Bill of Materials
 
-- TTGO T-Display - https://lilygo.cc/products/lilygo%C2%AE-ttgo-t-display-1-14-inch-lcd-esp32-control-board
-- Analog joystick
-- 3.7v battery or a power bank
+## Gotchas
 
-Inspiration Mecanum Wheel Robot Car & ESP-NOW Remote from the drone Workshop
-https://www.youtube.com/watch?v=dZttHOxIoek
-
-[1]: #3v3
+- y Axis was inverted on my analog joystick, so I had to adapt to this in my control code
+- 5V of the joystick is actually plugged to the 3.3V of the esp, otherwise you have erratic measures
+- to get the display working, make sure to update the ``Setup25_TTGO_T_Display`` in the TFT-eSPI Library by Bodmer
