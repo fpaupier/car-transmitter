@@ -80,12 +80,15 @@ void loop() {
 ### Configuring the display library
 
 _Tips from the Drone workshop_
-The sketch we will be writing for the controller use the TFT-eSPI Library by Bodmer. We list it in as dependency in the `platformio.ini` file.
+The sketch we will be writing for the controller use the TFT-eSPI Library by Bodmer. We list it in as dependency in
+the `platformio.ini` file.
 
-After installing it, **you will need to modify a file in the library** to work with the TTGO T-Display. Here is how you do
+After installing it, **you will need to modify a file in the library** to work with the TTGO T-Display. Here is how you
+do
 this:
 
-1. Navigate to the `TFT_eSPI` folder in your libraries folder (which usually lives under your `.pio/libdeps/lilygo-t-display` folder).
+1. Navigate to the `TFT_eSPI` folder in your libraries folder (which usually lives under
+   your `.pio/libdeps/lilygo-t-display` folder).
 2. Look for `User_Setup_Select.h` and open it
 3. Comment out line 27, which reads `#include <User_Setup.h>`
 4. Uncomment line 58, which reads `#include <User_Setups/Setup25_TTGO_T_Display.h>`
@@ -94,6 +97,22 @@ this:
 Once you do this, the library will work with the TTGO module!
 
 ### Source code structure
+
+```log
+car-transmitter/
+├── include/
+│   ├── config.h           // Configuration and constants
+│   ├── joystick.h         // Joystick handling
+│   ├── display.h          // Display and UI
+│   ├── coms.h             // ESP-NOW communication
+│   ├── secrets.h          // Here you put your receiver MAC addresses
+│   └── types.h            // Shared data structures
+├── src/
+│   ├── main.cpp           // Main program flow
+│   ├── joystick.cpp       // Joystick implementation
+│   ├── display.cpp        // Display implementation
+│   └── communication.cpp  // Communication implementation
+```
 
 
 
