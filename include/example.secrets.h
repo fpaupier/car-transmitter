@@ -1,5 +1,4 @@
-#ifndef CAR_TRANSMITTER_SECRETS_H
-#define CAR_TRANSMITTER_SECRETS_H
+#pragma once
 
 #include <cstdint>
 
@@ -8,6 +7,3 @@
 // then use: {0x3C, 0x61, 0x05, 0x12, 0x34, 0x56}
 
 const uint8_t RECEIVER_MAC_ADDRESS[] = {0x3C, 0x61, 0x05, 0x12, 0x34, 0x56};
-
-
-#endif //CAR_TRANSMITTER_SECRETS_H
